@@ -8,6 +8,7 @@ export type UserResponse = {
 export type StockQuoteResponse = {
   symbol: string;
   price: number;
+  name: string | null;
   lastUpdated: string;
 };
 
@@ -17,6 +18,16 @@ export type PortfolioResponse = {
   totalValue: number;
   netManualFunding: number;
   pnlPercentVsFunding: number | null;
+};
+
+export type HoldingInfo = {
+  symbol: string;
+  quantity: number;
+  averageCostKrw: number;
+  currentPriceKrw: number;
+  currentValueKrw: number;
+  pnlAmountKrw: number;
+  pnlPercent: number | null;
 };
 
 export type LedgerEntryResponse = {

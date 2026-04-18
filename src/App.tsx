@@ -1,50 +1,152 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import * as api from "./api/investApi";
-import type { LedgerEntryResponse, PortfolioResponse, StockQuoteResponse, TransactionType } from "./types";
+import { Holdings } from "./components/Holdings";
+import { Ledger } from "./components/Ledger";
+import type {
+  HoldingInfo,
+  LedgerEntryResponse,
+  PortfolioResponse,
+  StockQuoteResponse,
+  TransactionType,
+} from "./types";
+import {
+  formatKRW,
+  formatNum,
+  formatQuotePrice,
+  formatWhen,
+} from "./utils/format";
 import { parsePositiveDecimal } from "./util/decimalInput";
 
 const USER_KEY = "invest_user_id";
 const DEFAULT_SYMBOL = "AAPL";
+const DEFAULT_RATE = 1500;
 
-const TYPE_LABEL: Record<TransactionType, string> = {
-  ADD_MONEY: "입금",
-  SUBTRACT_MONEY: "출금",
-  BUY: "매수",
-  SELL: "매도",
-};
-
-const ALL_TYPES: TransactionType[] = ["ADD_MONEY", "SUBTRACT_MONEY", "BUY", "SELL"];
-
-function formatMoney(n: number): string {
-  return n.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-}
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ko-KR");
-}
+type RateStatus = "loading" | "yahoo" | "manual";
+type Tab = "holdings" | "ledger";
+type ServerStatus = "checking" | "online" | "offline";
+type TradeMode = "qty" | "amount";
 
 function App() {
-  const [userId, setUserId] = useState<string | null>(() => localStorage.getItem(USER_KEY));
+  const [userId, setUserId] = useState<string | null>(() =>
+    localStorage.getItem(USER_KEY)
+  );
   const [loginInput, setLoginInput] = useState("");
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
-  const [quoteSymbol, setQuoteSymbol] = useState(DEFAULT_SYMBOL);
+  const [holdings, setHoldings] = useState<HoldingInfo[]>([]);
+  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
   const [quote, setQuote] = useState<StockQuoteResponse | null>(null);
-  const [tradeSymbol, setTradeSymbol] = useState(DEFAULT_SYMBOL);
+  const [tradeMode, setTradeMode] = useState<TradeMode>("qty");
   const [tradeQty, setTradeQty] = useState("1");
-  const [walletAmount, setWalletAmount] = useState("10000");
+  const [tradeAmount, setTradeAmount] = useState("");
+  const [walletAmount, setWalletAmount] = useState("1000000");
   const [ledgerTypes, setLedgerTypes] = useState<TransactionType[]>([]);
   const [ledger, setLedger] = useState<LedgerEntryResponse[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>("holdings");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [yahooRate, setYahooRate] = useState<number | null>(null);
+  const [rateInput, setRateInput] = useState(String(DEFAULT_RATE));
+  const [rateStatus, setRateStatus] = useState<RateStatus>("loading");
+
+  const [serverStatus, setServerStatus] = useState<ServerStatus>("checking");
+  const serverStatusRef = useRef<ServerStatus>("checking");
+  serverStatusRef.current = serverStatus;
+  const wasOfflineRef = useRef(false);
+
   const apiBase = useMemo(() => {
     const raw = import.meta.env.VITE_API_BASE_URL;
-    return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : "http://localhost:8080";
+    return typeof raw === "string" && raw.trim().length > 0
+      ? raw.trim()
+      : "http://localhost:8080";
   }, []);
+
+  const rate: number =
+    rateStatus === "yahoo" && yahooRate != null
+      ? yahooRate
+      : parseFloat(rateInput) || DEFAULT_RATE;
+
+  // 금액 모드에서 계산된 수량
+  const amountQty = useMemo(() => {
+    if (tradeMode !== "amount" || !quote) return null;
+    const amt = parseFloat(tradeAmount);
+    if (!amt || amt <= 0) return null;
+    const priceKrw = quote.price * rate;
+    if (priceKrw <= 0) return null;
+    return amt / priceKrw;
+  }, [tradeMode, tradeAmount, quote, rate]);
+  const checkHealth = useCallback(async () => {
+    try {
+      const ok = await api.checkHealth();
+      const prev = serverStatusRef.current;
+
+      if (ok) {
+        setServerStatus("online");
+        if (prev === "offline" || prev === "checking") {
+          wasOfflineRef.current = false;
+        }
+      } else {
+        wasOfflineRef.current = true;
+        setServerStatus("offline");
+      }
+
+      return ok;
+    } catch {
+      wasOfflineRef.current = true;
+      setServerStatus("offline");
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let isRunning = false;
+    let isMounted = true;
+
+    const poll = async () => {
+      if (!isMounted || isRunning) return;
+
+      isRunning = true;
+      try {
+        const ok = await checkHealth();
+        const delay = ok ? 30000 : 5000;
+
+        timerId = setTimeout(poll, delay);
+      } finally {
+        isRunning = false;
+      }
+    };
+
+    poll();
+
+    return () => {
+      isMounted = false;
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [checkHealth]);
+
+  // 환율
+  const fetchRate = useCallback(async () => {
+    try {
+      const q = await api.getQuote("KRW=X");
+      if (q?.price && q.price > 100) {
+        setYahooRate(q.price);
+        setRateStatus("yahoo");
+        return;
+      }
+    } catch {
+      // fall through
+    }
+    setRateStatus((prev) => (prev === "loading" ? "manual" : prev));
+  }, []);
+
+  useEffect(() => {
+    void fetchRate();
+    const id = window.setInterval(() => void fetchRate(), 60_000);
+    return () => window.clearInterval(id);
+  }, [fetchRate]);
 
   const clearError = () => setError(null);
 
@@ -61,23 +163,36 @@ function App() {
     }
   };
 
-  const refreshPortfolio = useCallback(async (uid: string) => {
-    const p = await api.getPortfolio(uid);
-    setPortfolio(p);
-    setCashBalance(p.cashBalance);
+  const refreshHoldings = useCallback(async (uid: string) => {
+    const h = await api.getHoldings(uid);
+    setHoldings(h);
   }, []);
 
-  const refreshLedger = useCallback(async (uid: string, types: TransactionType[]) => {
-    const rows = await api.getLedger(uid, types.length ? types : undefined);
-    setLedger(rows);
-  }, []);
+  const refreshPortfolio = useCallback(
+    async (uid: string) => {
+      const p = await api.getPortfolio(uid);
+      setPortfolio(p);
+      setCashBalance(p.cashBalance);
+      await refreshHoldings(uid);
+    },
+    [refreshHoldings]
+  );
+
+  const refreshLedger = useCallback(
+    async (uid: string, types: TransactionType[]) => {
+      const rows = await api.getLedger(uid, types.length ? types : undefined);
+      setLedger(rows);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!userId) return;
     void refreshPortfolio(userId).catch(() => {});
-    const id = window.setInterval(() => {
-      void refreshPortfolio(userId).catch(() => {});
-    }, 5000);
+    const id = window.setInterval(
+      () => void refreshPortfolio(userId).catch(() => {}),
+      5000
+    );
     return () => window.clearInterval(id);
   }, [userId, refreshPortfolio]);
 
@@ -87,7 +202,7 @@ function App() {
   }, [userId, ledgerTypes, refreshLedger]);
 
   useEffect(() => {
-    const sym = quoteSymbol.trim();
+    const sym = symbol.trim();
     if (!sym) {
       setQuote(null);
       return;
@@ -100,7 +215,8 @@ function App() {
           if (!cancelled) setQuote(q);
         })
         .catch((e: unknown) => {
-          if (!cancelled) setError(e instanceof Error ? e.message : "시세 조회 실패");
+          if (!cancelled)
+            setError(e instanceof Error ? e.message : "시세 조회 실패");
         });
     };
     tick();
@@ -109,9 +225,9 @@ function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [quoteSymbol]);
+  }, [symbol]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     const id = loginInput.trim();
     if (!id) {
@@ -134,20 +250,32 @@ function App() {
     setUserId(null);
     setCashBalance(null);
     setPortfolio(null);
+    setHoldings([]);
     setLedger([]);
     setQuote(null);
     clearError();
   };
 
+  const resolveTradeQty = (): number | null => {
+    if (tradeMode === "qty") {
+      return parsePositiveDecimal(tradeQty);
+    }
+    return amountQty;
+  };
+
   const handleBuy = async () => {
     if (!userId) return;
-    const qty = parsePositiveDecimal(tradeQty);
+    const qty = resolveTradeQty();
     if (!qty) {
-      setError("수량은 양의 숫자여야 합니다.");
+      setError(
+        tradeMode === "qty"
+          ? "수량은 양의 숫자여야 합니다."
+          : "금액을 입력하세요."
+      );
       return;
     }
     await withBusy(async () => {
-      const u = await api.buy(userId, tradeSymbol, qty);
+      const u = await api.buy(userId, symbol, qty, rate);
       setCashBalance(u.balance);
       await refreshPortfolio(userId);
       await refreshLedger(userId, ledgerTypes);
@@ -156,13 +284,17 @@ function App() {
 
   const handleSell = async () => {
     if (!userId) return;
-    const qty = parsePositiveDecimal(tradeQty);
+    const qty = resolveTradeQty();
     if (!qty) {
-      setError("수량은 양의 숫자여야 합니다.");
+      setError(
+        tradeMode === "qty"
+          ? "수량은 양의 숫자여야 합니다."
+          : "금액을 입력하세요."
+      );
       return;
     }
     await withBusy(async () => {
-      const u = await api.sell(userId, tradeSymbol, qty);
+      const u = await api.sell(userId, symbol, qty, rate);
       setCashBalance(u.balance);
       await refreshPortfolio(userId);
       await refreshLedger(userId, ledgerTypes);
@@ -199,9 +331,19 @@ function App() {
     });
   };
 
-  const toggleLedgerType = (t: TransactionType) => {
-    setLedgerTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
-  };
+  const toggleLedgerType = (t: TransactionType) =>
+    setLedgerTypes((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+    );
+
+  const serverStatusLabel =
+    serverStatus === "online"
+      ? "연결됨"
+      : serverStatus === "offline"
+      ? wasOfflineRef.current
+        ? "깨우는 중…"
+        : "오프라인"
+      : "확인 중";
 
   if (!userId) {
     return (
@@ -211,11 +353,19 @@ function App() {
             <h1 className="app__title">Invest</h1>
             <p className="app__meta">ID만으로 로그인합니다.</p>
           </div>
+          <div className="server-indicator">
+            <span className={`status-dot status-dot--${serverStatus}`} />
+            <span className="app__meta">{serverStatusLabel}</span>
+          </div>
         </header>
         {error ? <div className="app__banner">{error}</div> : null}
         <div className="card" style={{ maxWidth: 420 }}>
           <h2>로그인</h2>
-          <form onSubmit={handleLogin} className="row" style={{ flexDirection: "column", alignItems: "stretch" }}>
+          <form
+            onSubmit={handleLogin}
+            className="row"
+            style={{ flexDirection: "column", alignItems: "stretch" }}
+          >
             <div className="field" style={{ minWidth: "100%" }}>
               <label htmlFor="userId">사용자 ID</label>
               <input
@@ -226,8 +376,12 @@ function App() {
                 placeholder="예: alice"
               />
             </div>
-            <button className="btn btn--primary" type="submit" disabled={busy}>
-              시작하기
+            <button
+              className="btn btn--primary"
+              type="submit"
+              disabled={busy || serverStatus !== "online"}
+            >
+              {serverStatus === "offline" ? "서버 연결 대기 중…" : "시작하기"}
             </button>
           </form>
           <p className="app__meta" style={{ marginTop: "0.75rem" }}>
@@ -245,12 +399,23 @@ function App() {
           <h1 className="app__title">Invest</h1>
           <p className="app__meta">
             로그인: <span className="mono">{userId}</span> · 현금{" "}
-            <span className="mono">{cashBalance == null ? "—" : formatMoney(cashBalance)}</span>
+            <span className="mono">
+              {cashBalance == null ? "—" : formatKRW(cashBalance)}
+            </span>
           </p>
         </div>
-        <div className="row">
-          <button type="button" className="btn btn--ghost" onClick={() => void refreshPortfolio(userId)} disabled={busy}>
-            포트폴리오 새로고침
+        <div className="row" style={{ gap: "0.75rem" }}>
+          <div className="server-indicator">
+            <span className={`status-dot status-dot--${serverStatus}`} />
+            <span className="app__meta">{serverStatusLabel}</span>
+          </div>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => void refreshPortfolio(userId)}
+            disabled={busy}
+          >
+            새로고침
           </button>
           <button type="button" className="btn" onClick={handleLogout}>
             로그아웃
@@ -258,29 +423,147 @@ function App() {
         </div>
       </header>
 
+      <div className="rate-bar">
+        {rateStatus === "loading" && (
+          <span className="app__meta">환율 불러오는 중…</span>
+        )}
+        {rateStatus === "yahoo" && yahooRate != null && (
+          <>
+            <span className="app__meta">
+              환율{" "}
+              <span className="mono">
+                ₩{yahooRate.toLocaleString("ko-KR")}/$
+              </span>
+              <span style={{ marginLeft: "0.3rem" }}>(Yahoo Finance)</span>
+            </span>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => setRateStatus("manual")}
+            >
+              수동 설정
+            </button>
+          </>
+        )}
+        {rateStatus === "manual" && (
+          <>
+            <span className="app__meta">
+              환율{yahooRate == null ? " (Yahoo 조회 실패)" : " (수동 설정)"}:
+            </span>
+            <input
+              className="mono rate-input"
+              value={rateInput}
+              onChange={(ev) => setRateInput(ev.target.value)}
+              inputMode="decimal"
+            />
+            <span className="app__meta">₩/$</span>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => void fetchRate()}
+            >
+              Yahoo에서 가져오기
+            </button>
+          </>
+        )}
+      </div>
+
       {error ? <div className="app__banner">{error}</div> : null}
 
       <div className="grid grid--2">
         <div className="card">
-          <h2>준실시간 시세</h2>
-          <p className="app__meta" style={{ marginTop: "-0.35rem", marginBottom: "0.65rem" }}>
+          <h2>시세 & 매매</h2>
+          <p
+            className="app__meta"
+            style={{ marginTop: "-0.35rem", marginBottom: "0.65rem" }}
+          >
             서버 메모리 캐시 기준으로 3초마다 갱신합니다.
           </p>
           <div className="row">
             <div className="field">
               <label htmlFor="sym">심볼</label>
-              <input id="sym" value={quoteSymbol} onChange={(ev) => setQuoteSymbol(ev.target.value.toUpperCase())} />
+              <input
+                id="sym"
+                value={symbol}
+                onChange={(ev) => setSymbol(ev.target.value.toUpperCase())}
+              />
+            </div>
+            <div className="field">
+              <div className="mode-toggle">
+                <button
+                  type="button"
+                  className={`mode-btn${
+                    tradeMode === "qty" ? " mode-btn--active" : ""
+                  }`}
+                  onClick={() => setTradeMode("qty")}
+                >
+                  수량
+                </button>
+                <button
+                  type="button"
+                  className={`mode-btn${
+                    tradeMode === "amount" ? " mode-btn--active" : ""
+                  }`}
+                  onClick={() => setTradeMode("amount")}
+                >
+                  금액
+                </button>
+              </div>
+              {tradeMode === "qty" ? (
+                <input
+                  id="qty"
+                  value={tradeQty}
+                  onChange={(ev) => setTradeQty(ev.target.value)}
+                  inputMode="decimal"
+                  placeholder="수량"
+                />
+              ) : (
+                <div>
+                  <input
+                    id="trade-amount"
+                    value={tradeAmount}
+                    onChange={(ev) => setTradeAmount(ev.target.value)}
+                    inputMode="decimal"
+                    placeholder="금액 (원)"
+                  />
+                  {amountQty != null && (
+                    <p className="app__meta" style={{ marginTop: "0.2rem" }}>
+                      ≈ {amountQty.toFixed(6)} 주
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           {quote ? (
-            <p style={{ marginTop: "0.75rem" }}>
-              <span className="mono">{quote.symbol}</span>{" "}
-              <strong className="mono">{formatMoney(quote.price)}</strong>
-              <span className="app__meta" style={{ marginLeft: "0.5rem" }}>
-                {formatWhen(quote.lastUpdated)}
-              </span>
-            </p>
-          ) : quoteSymbol.trim() ? (
+            <div
+              className="row"
+              style={{ marginTop: "0.75rem", flexWrap: "wrap" }}
+            >
+              <span className="mono">{quote.symbol}</span>
+              {quote.name && <span className="app__meta">{quote.name}</span>}
+              <strong className="mono">
+                {formatQuotePrice(quote.price, rate)}
+              </strong>
+              <span className="app__meta">{formatWhen(quote.lastUpdated)}</span>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => void handleBuy()}
+                disabled={busy}
+              >
+                매수
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={() => void handleSell()}
+                disabled={busy}
+              >
+                매도
+              </button>
+            </div>
+          ) : symbol.trim() ? (
             <p className="app__meta" style={{ marginTop: "0.75rem" }}>
               불러오는 중…
             </p>
@@ -294,31 +577,38 @@ function App() {
         <div className="card">
           <h2>포트폴리오</h2>
           {portfolio ? (
-            <dl className="mono" style={{ margin: 0, display: "grid", gap: "0.35rem" }}>
+            <dl
+              className="mono"
+              style={{ margin: 0, display: "grid", gap: "0.35rem" }}
+            >
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <dt>현금</dt>
-                <dd style={{ margin: 0 }}>{formatMoney(portfolio.cashBalance)}</dd>
+                <dd style={{ margin: 0 }}>
+                  {formatKRW(portfolio.cashBalance)}
+                </dd>
               </div>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <dt>주식 평가액</dt>
-                <dd style={{ margin: 0 }}>{formatMoney(portfolio.stockValue)}</dd>
+                <dd style={{ margin: 0 }}>{formatKRW(portfolio.stockValue)}</dd>
               </div>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <dt>합계</dt>
                 <dd style={{ margin: 0 }}>
-                  <strong>{formatMoney(portfolio.totalValue)}</strong>
+                  <strong>{formatKRW(portfolio.totalValue)}</strong>
                 </dd>
               </div>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <dt>순 수동 입출금</dt>
-                <dd style={{ margin: 0 }}>{formatMoney(portfolio.netManualFunding)}</dd>
+                <dd style={{ margin: 0 }}>
+                  {formatKRW(portfolio.netManualFunding)}
+                </dd>
               </div>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <dt>수동 입금 대비 손익률</dt>
                 <dd style={{ margin: 0 }}>
                   {portfolio.pnlPercentVsFunding == null
                     ? "—"
-                    : `${formatMoney(portfolio.pnlPercentVsFunding)}%`}
+                    : `${formatNum(portfolio.pnlPercentVsFunding)}%`}
                 </dd>
               </div>
             </dl>
@@ -331,90 +621,74 @@ function App() {
           <h2>지갑</h2>
           <div className="row">
             <div className="field">
-              <label htmlFor="amt">금액</label>
-              <input id="amt" value={walletAmount} onChange={(ev) => setWalletAmount(ev.target.value)} inputMode="decimal" />
+              <label htmlFor="amt">금액 (원)</label>
+              <input
+                id="amt"
+                value={walletAmount}
+                onChange={(ev) => setWalletAmount(ev.target.value)}
+                inputMode="decimal"
+                placeholder="예: 1000000"
+              />
             </div>
-            <button type="button" className="btn btn--primary" onClick={() => void handleDeposit()} disabled={busy}>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => void handleDeposit()}
+              disabled={busy}
+            >
               입금
             </button>
-            <button type="button" className="btn btn--danger" onClick={() => void handleWithdraw()} disabled={busy}>
+            <button
+              type="button"
+              className="btn btn--danger"
+              onClick={() => void handleWithdraw()}
+              disabled={busy}
+            >
               출금
-            </button>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2>매매</h2>
-          <div className="row">
-            <div className="field">
-              <label htmlFor="tsym">심볼</label>
-              <input id="tsym" value={tradeSymbol} onChange={(ev) => setTradeSymbol(ev.target.value.toUpperCase())} />
-            </div>
-            <div className="field">
-              <label htmlFor="qty">수량</label>
-              <input id="qty" value={tradeQty} onChange={(ev) => setTradeQty(ev.target.value)} inputMode="decimal" />
-            </div>
-            <button type="button" className="btn btn--primary" onClick={() => void handleBuy()} disabled={busy}>
-              매수
-            </button>
-            <button type="button" className="btn" onClick={() => void handleSell()} disabled={busy}>
-              매도
             </button>
           </div>
         </div>
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h2>거래·입출금 내역</h2>
-        <p className="app__meta" style={{ marginTop: "-0.35rem", marginBottom: "0.65rem" }}>
-          유형을 하나도 고르지 않으면 전체를 표시합니다. 원하는 유형만 고르면 필터됩니다.
-        </p>
-        <div className="chips" style={{ marginBottom: "0.75rem" }}>
-          {ALL_TYPES.map((t) => (
-            <label key={t} className="chip">
-              <input type="checkbox" checked={ledgerTypes.includes(t)} onChange={() => toggleLedgerType(t)} />
-              {TYPE_LABEL[t]}
-            </label>
-          ))}
-          <button type="button" className="btn btn--ghost" onClick={() => setLedgerTypes([])} disabled={!ledgerTypes.length}>
-            필터 초기화
+        <div className="tabs">
+          <button
+            type="button"
+            className={`tab-btn${
+              activeTab === "holdings" ? " tab-btn--active" : ""
+            }`}
+            onClick={() => setActiveTab("holdings")}
+          >
+            보유 주식
+            {holdings.length > 0 && (
+              <span className="tab-badge">{holdings.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className={`tab-btn${
+              activeTab === "ledger" ? " tab-btn--active" : ""
+            }`}
+            onClick={() => {
+              setActiveTab("ledger");
+              if (userId)
+                void refreshLedger(userId, ledgerTypes).catch(() => {});
+            }}
+          >
+            거래·입출금 내역
           </button>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>시간</th>
-                <th>유형</th>
-                <th>심볼</th>
-                <th>수량</th>
-                <th>단가</th>
-                <th>현금 변동</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledger.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="app__meta">
-                    내역이 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                ledger.map((row) => (
-                  <tr key={row.id}>
-                    <td className="mono">{formatWhen(row.createdAt)}</td>
-                    <td>
-                      <span className="pill">{TYPE_LABEL[row.type]}</span>
-                    </td>
-                    <td className="mono">{row.symbol ?? "—"}</td>
-                    <td className="mono">{row.quantity == null ? "—" : formatMoney(row.quantity)}</td>
-                    <td className="mono">{row.unitPrice == null ? "—" : formatMoney(row.unitPrice)}</td>
-                    <td className="mono">{formatMoney(row.cashDelta)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+
+        <div style={{ paddingTop: "0.75rem" }}>
+          {activeTab === "holdings" && <Holdings holdings={holdings} />}
+          {activeTab === "ledger" && (
+            <Ledger
+              ledger={ledger}
+              ledgerTypes={ledgerTypes}
+              onToggleType={toggleLedgerType}
+              onResetFilter={() => setLedgerTypes([])}
+            />
+          )}
         </div>
       </div>
     </div>

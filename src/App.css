@@ -221,3 +221,131 @@ th {
   border: 1px solid #cbd5e1;
   font-size: 0.82rem;
 }
+
+.btn--sm {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tabs {
+    border-color: #1f2937;
+  }
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.6;
+}
+
+.tab-btn--active {
+  border-bottom-color: #2563eb;
+  color: #2563eb;
+  opacity: 1;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.tab-btn--active .tab-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tab-badge {
+    background: #1e293b;
+    color: #94a3b8;
+  }
+  .tab-btn--active .tab-badge {
+    background: #1e3a5f;
+    color: #60a5fa;
+  }
+}
+
+.pnl--pos {
+  color: #16a34a;
+}
+
+.pnl--neg {
+  color: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pnl--pos {
+    color: #4ade80;
+  }
+  .pnl--neg {
+    color: #f87171;
+  }
+}
+
+.pnl__pct {
+  margin-left: 0.35rem;
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+
+.rate-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.85rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .rate-bar {
+    background: #0b1220;
+    border-color: #1f2937;
+  }
+}
+
+.rate-input {
+  width: 80px;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: transparent;
+  font-size: 0.88rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .rate-input {
+    border-color: #334155;
+  }
+}
