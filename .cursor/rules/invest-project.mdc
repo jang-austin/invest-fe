@@ -1,0 +1,32 @@
+---
+description: invest-fe 도메인·배포·백엔드 연동 맥락
+alwaysApply: true
+---
+
+# Invest FE 프로젝트
+
+- React + TypeScript(Vite) 프론트. 백엔드는 형제 디렉터리 `../invest-be`(Spring Boot).
+- 배포: 프론트 Netlify, 백엔드 Render, DB Supabase(백엔드 설정).
+- 주가는 Yahoo Finance를 백엔드가 조회하고, **준실시간 가격은 서버 메모리 싱글톤**에만 둔다. DB에는 주가 시계열을 저장하지 않는다.
+- 사용자는 **ID만**으로 로그인·식별한다.
+
+## 백엔드 API 베이스
+
+`VITE_API_BASE_URL`(기본 `http://localhost:8080`). `/api/**` CORS 허용.
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/api/auth/login` | body `{ "userId": string }` → `{ id, balance }` |
+| GET | `/api/stocks/{symbol}/quote` | `{ symbol, price, lastUpdated }` |
+| POST | `/api/orders/buy` | `{ userId, symbol, quantity }` |
+| POST | `/api/orders/sell` | 동일 |
+| POST | `/api/wallet/deposit` | `{ userId, amount }` |
+| POST | `/api/wallet/withdraw` | `{ userId, amount }` |
+| GET | `/api/portfolio?userId=` | 현금·주식평가·합계·순수동입금·대비 손익률 |
+| GET | `/api/ledger?userId=&types=` | `types` 반복 또는 `ADD_MONEY,BUY` 형태 |
+
+## 프론트 구현 원칙
+
+- 로그인 후 `userId`를 `localStorage`에 보관해 새로고침에도 유지.
+- 시세는 **짧은 간격 폴링**(백엔드 메모리 캐시와 맞춤).
+- 금액·수량은 문자열 입력 후 검증해 API 전송(부동소수 오류 최소화).
