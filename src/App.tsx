@@ -424,11 +424,7 @@ function App() {
         {error ? <div className="app__banner">{error}</div> : null}
         <div className="card" style={{ maxWidth: 420, textAlign: "center" }}>
           <h2 style={{ marginBottom: "1.5rem" }}>로그인</h2>
-          {serverStatus !== "online" ? (
-            <p className="app__meta">
-              {serverStatus === "offline" ? "서버 연결 대기 중…" : "서버 확인 중…"}
-            </p>
-          ) : !import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+          {!import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
             <p className="app__meta" style={{ color: "#dc2626" }}>
               VITE_GOOGLE_CLIENT_ID 환경변수가 설정되지 않았습니다.
             </p>
@@ -437,7 +433,12 @@ function App() {
               <div ref={googleBtnRef} />
             </div>
           )}
-          {busy && <p className="app__meta" style={{ marginTop: "1rem" }}>로그인 중…</p>}
+          {serverStatus !== "online" && (
+            <p className="app__meta" style={{ marginTop: "0.75rem" }}>
+              {serverStatus === "offline" ? "⚠ 서버 연결 대기 중 — 로그인 후 잠시 기다려주세요" : "서버 확인 중…"}
+            </p>
+          )}
+          {busy && <p className="app__meta" style={{ marginTop: "0.5rem" }}>로그인 중…</p>}
         </div>
       </div>
     );
