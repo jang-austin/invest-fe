@@ -62,6 +62,7 @@ function App() {
   const serverStatusRef = useRef<ServerStatus>("checking");
   serverStatusRef.current = serverStatus;
   const wasOfflineRef = useRef(false);
+  const [gsiReady, setGsiReady] = useState(false);
 
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -269,32 +270,40 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ledgerTypes, refreshPortfolio, refreshLedger]);
 
-  // Google Identity Services 초기화
+  // 1단계: GIS 스크립트 로드
   useEffect(() => {
-    if (userId) return; // 이미 로그인됨
+    if (userId) return;
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
     if (!clientId) return;
+
+    // 이미 로드된 경우 (캐시 등)
+    if (window.google?.accounts?.id) { setGsiReady(true); return; }
 
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
-    script.onload = () => {
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: (res) => void handleGoogleCredential(res.credential),
-      });
-      if (googleBtnRef.current) {
-        window.google.accounts.id.renderButton(googleBtnRef.current, {
-          theme: "outline",
-          size: "large",
-          width: 280,
-          locale: "ko",
-        });
-      }
-    };
+    script.onload = () => setGsiReady(true);
     document.body.appendChild(script);
     return () => { document.body.removeChild(script); };
-  }, [userId, handleGoogleCredential]);
+  }, [userId]);
+
+  // 2단계: 스크립트 준비 + ref 마운트 후 버튼 렌더링
+  useEffect(() => {
+    if (!gsiReady || !googleBtnRef.current) return;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!clientId) return;
+
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: (res) => void handleGoogleCredential(res.credential),
+    });
+    window.google.accounts.id.renderButton(googleBtnRef.current, {
+      theme: "outline",
+      size: "large",
+      width: 280,
+      locale: "ko",
+    });
+  }, [gsiReady, handleGoogleCredential]);
 
   const handleLogout = () => {
     if (userId && window.google?.accounts?.id) {
