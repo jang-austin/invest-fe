@@ -36,6 +36,17 @@ export type HoldingInfo = {
   pnlPercent: number | null;
 };
 
+export type HistoryPoint = { date: string; close: number };
+
+export type WhatIfResponse = {
+  symbol: string;
+  totalDepositedKrw: number;
+  currentValueKrw: number;
+  returnAmountKrw: number;
+  returnPercent: number | null;
+  actualReturnPercent: number | null;
+};
+
 export type StockSearchResult = {
   symbol: string;
   name: string | null;

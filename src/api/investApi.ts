@@ -1,11 +1,13 @@
 import type {
   HoldingInfo,
+  HistoryPoint,
   LedgerEntryResponse,
   PortfolioResponse,
   StockQuoteResponse,
   StockSearchResult,
   TransactionType,
   UserResponse,
+  WhatIfResponse,
 } from "../types";
 
 function apiBase(): string {
@@ -146,4 +148,14 @@ export async function getLedger(
 export async function searchStocks(query: string): Promise<StockSearchResult[]> {
   const q = new URLSearchParams({ q: query });
   return requestJson<StockSearchResult[]>(`/api/stocks/search?${q}`);
+}
+
+export async function getHistory(symbol: string, range: string): Promise<HistoryPoint[]> {
+  const q = new URLSearchParams({ range });
+  return requestJson<HistoryPoint[]>(`/api/stocks/${encodeURIComponent(symbol)}/history?${q}`);
+}
+
+export async function getWhatIf(userId: string, symbol: string): Promise<WhatIfResponse> {
+  const q = new URLSearchParams({ userId, symbol });
+  return requestJson<WhatIfResponse>(`/api/portfolio/whatif?${q}`);
 }

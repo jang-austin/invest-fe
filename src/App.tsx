@@ -3,6 +3,8 @@ import "./App.css";
 import * as api from "./api/investApi";
 import { Holdings } from "./components/Holdings";
 import { Ledger } from "./components/Ledger";
+import { PriceChart } from "./components/PriceChart";
+import { WhatIf } from "./components/WhatIf";
 import type {
   HoldingInfo,
   LedgerEntryResponse,
@@ -688,6 +690,7 @@ function App() {
               심볼을 입력하세요.
             </p>
           )}
+          {symbol && <PriceChart symbol={symbol} />}
         </div>
 
         <div className="card">
@@ -731,6 +734,9 @@ function App() {
           ) : (
             <p className="app__meta">불러오는 중…</p>
           )}
+          <hr style={{ margin: "1rem 0", opacity: 0.2 }} />
+          <h3 style={{ marginBottom: "0.5rem", fontSize: "0.95rem" }}>만약에 계산기</h3>
+          <WhatIf userId={userId} />
         </div>
 
         <div className="card">
