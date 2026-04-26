@@ -1,8 +1,11 @@
-export type TransactionType = "ADD_MONEY" | "SUBTRACT_MONEY" | "BUY" | "SELL";
+export type TransactionType = "ADD_MONEY" | "SUBTRACT_MONEY" | "BUY" | "SELL" | "DIVIDEND_REINVEST";
 
 export type UserResponse = {
   id: string;
   balance: number;
+  email: string | null;
+  name: string | null;
+  pictureUrl: string | null;
 };
 
 export type StockQuoteResponse = {
@@ -10,6 +13,9 @@ export type StockQuoteResponse = {
   price: number;
   name: string | null;
   lastUpdated: string;
+  preMarketPrice: number | null;
+  postMarketPrice: number | null;
+  marketState: string | null;
 };
 
 export type PortfolioResponse = {
@@ -28,6 +34,13 @@ export type HoldingInfo = {
   currentValueKrw: number;
   pnlAmountKrw: number;
   pnlPercent: number | null;
+};
+
+export type StockSearchResult = {
+  symbol: string;
+  name: string | null;
+  exchange: string | null;
+  type: string | null;
 };
 
 export type LedgerEntryResponse = {

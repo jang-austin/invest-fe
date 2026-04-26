@@ -8,6 +8,7 @@ import type {
   LedgerEntryResponse,
   PortfolioResponse,
   StockQuoteResponse,
+  StockSearchResult,
   TransactionType,
 } from "./types";
 import {
@@ -31,11 +32,17 @@ function App() {
   const [userId, setUserId] = useState<string | null>(() =>
     localStorage.getItem(USER_KEY)
   );
-  const [loginInput, setLoginInput] = useState("");
+  const [userProfile, setUserProfile] = useState<{
+    name: string | null;
+    email: string | null;
+    pictureUrl: string | null;
+  } | null>(null);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [holdings, setHoldings] = useState<HoldingInfo[]>([]);
-  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
+  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);       // 확정된 심볼 (시세 조회용)
+  const [symbolInput, setSymbolInput] = useState(DEFAULT_SYMBOL); // 입력 중인 텍스트 (검색용)
   const [quote, setQuote] = useState<StockQuoteResponse | null>(null);
   const [tradeMode, setTradeMode] = useState<TradeMode>("qty");
   const [tradeQty, setTradeQty] = useState("1");
@@ -56,12 +63,10 @@ function App() {
   serverStatusRef.current = serverStatus;
   const wasOfflineRef = useRef(false);
 
-  const apiBase = useMemo(() => {
-    const raw = import.meta.env.VITE_API_BASE_URL;
-    return typeof raw === "string" && raw.trim().length > 0
-      ? raw.trim()
-      : "http://localhost:8080";
-  }, []);
+  const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
+
 
   const rate: number =
     rateStatus === "yahoo" && yahooRate != null
@@ -201,6 +206,30 @@ function App() {
     void refreshLedger(userId, ledgerTypes).catch(() => {});
   }, [userId, ledgerTypes, refreshLedger]);
 
+  // 심볼 입력 디바운스 검색 (symbolInput 기준 — 한글 포함)
+  useEffect(() => {
+    const q = symbolInput.trim();
+    if (q.length < 1) { setSearchResults([]); setSearchOpen(false); return; }
+    const id = setTimeout(() => {
+      void api.searchStocks(q).then((r) => {
+        setSearchResults(r);
+        setSearchOpen(r.length > 0);
+      }).catch(() => {});
+    }, 300);
+    return () => clearTimeout(id);
+  }, [symbolInput]);
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   useEffect(() => {
     const sym = symbol.trim();
     if (!sym) {
@@ -227,27 +256,53 @@ function App() {
     };
   }, [symbol]);
 
-  const handleLogin = async (e: { preventDefault(): void }) => {
-    e.preventDefault();
-    const id = loginInput.trim();
-    if (!id) {
-      setError("ID를 입력하세요.");
-      return;
-    }
+  const handleGoogleCredential = useCallback(async (credential: string) => {
     await withBusy(async () => {
-      const u = await api.login(id);
+      const u = await api.googleLogin(credential);
       localStorage.setItem(USER_KEY, u.id);
       setUserId(u.id);
       setCashBalance(u.balance);
-      setLoginInput("");
+      setUserProfile({ name: u.name, email: u.email, pictureUrl: u.pictureUrl });
       await refreshPortfolio(u.id);
       await refreshLedger(u.id, ledgerTypes);
     });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledgerTypes, refreshPortfolio, refreshLedger]);
+
+  // Google Identity Services 초기화
+  useEffect(() => {
+    if (userId) return; // 이미 로그인됨
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!clientId) return;
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = () => {
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: (res) => void handleGoogleCredential(res.credential),
+      });
+      if (googleBtnRef.current) {
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: "outline",
+          size: "large",
+          width: 280,
+          locale: "ko",
+        });
+      }
+    };
+    document.body.appendChild(script);
+    return () => { document.body.removeChild(script); };
+  }, [userId, handleGoogleCredential]);
 
   const handleLogout = () => {
+    if (userId && window.google?.accounts?.id) {
+      window.google.accounts.id.disableAutoSelect();
+    }
     localStorage.removeItem(USER_KEY);
     setUserId(null);
+    setUserProfile(null);
     setCashBalance(null);
     setPortfolio(null);
     setHoldings([]);
@@ -351,7 +406,6 @@ function App() {
         <header className="app__header">
           <div>
             <h1 className="app__title">Invest</h1>
-            <p className="app__meta">ID만으로 로그인합니다.</p>
           </div>
           <div className="server-indicator">
             <span className={`status-dot status-dot--${serverStatus}`} />
@@ -359,34 +413,22 @@ function App() {
           </div>
         </header>
         {error ? <div className="app__banner">{error}</div> : null}
-        <div className="card" style={{ maxWidth: 420 }}>
-          <h2>로그인</h2>
-          <form
-            onSubmit={handleLogin}
-            className="row"
-            style={{ flexDirection: "column", alignItems: "stretch" }}
-          >
-            <div className="field" style={{ minWidth: "100%" }}>
-              <label htmlFor="userId">사용자 ID</label>
-              <input
-                id="userId"
-                value={loginInput}
-                onChange={(ev) => setLoginInput(ev.target.value)}
-                autoComplete="username"
-                placeholder="예: alice"
-              />
+        <div className="card" style={{ maxWidth: 420, textAlign: "center" }}>
+          <h2 style={{ marginBottom: "1.5rem" }}>로그인</h2>
+          {serverStatus !== "online" ? (
+            <p className="app__meta">
+              {serverStatus === "offline" ? "서버 연결 대기 중…" : "서버 확인 중…"}
+            </p>
+          ) : !import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+            <p className="app__meta" style={{ color: "#dc2626" }}>
+              VITE_GOOGLE_CLIENT_ID 환경변수가 설정되지 않았습니다.
+            </p>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <div ref={googleBtnRef} />
             </div>
-            <button
-              className="btn btn--primary"
-              type="submit"
-              disabled={busy || serverStatus !== "online"}
-            >
-              {serverStatus === "offline" ? "서버 연결 대기 중…" : "시작하기"}
-            </button>
-          </form>
-          <p className="app__meta" style={{ marginTop: "0.75rem" }}>
-            API: <span className="mono">{apiBase}</span>
-          </p>
+          )}
+          {busy && <p className="app__meta" style={{ marginTop: "1rem" }}>로그인 중…</p>}
         </div>
       </div>
     );
@@ -395,14 +437,23 @@ function App() {
   return (
     <div className="app">
       <header className="app__header">
-        <div>
-          <h1 className="app__title">Invest</h1>
-          <p className="app__meta">
-            로그인: <span className="mono">{userId}</span> · 현금{" "}
-            <span className="mono">
-              {cashBalance == null ? "—" : formatKRW(cashBalance)}
-            </span>
-          </p>
+        <div className="row" style={{ gap: "0.6rem", alignItems: "center" }}>
+          {userProfile?.pictureUrl && (
+            <img
+              src={userProfile.pictureUrl}
+              alt="profile"
+              className="profile-avatar"
+            />
+          )}
+          <div>
+            <h1 className="app__title">Invest</h1>
+            <p className="app__meta">
+              {userProfile?.name ?? userId} · 현금{" "}
+              <span className="mono">
+                {cashBalance == null ? "—" : formatKRW(cashBalance)}
+              </span>
+            </p>
+          </div>
         </div>
         <div className="row" style={{ gap: "0.75rem" }}>
           <div className="server-indicator">
@@ -482,11 +533,55 @@ function App() {
           <div className="row">
             <div className="field">
               <label htmlFor="sym">심볼</label>
-              <input
-                id="sym"
-                value={symbol}
-                onChange={(ev) => setSymbol(ev.target.value.toUpperCase())}
-              />
+              <div className="search-wrap" ref={searchWrapRef}>
+                <input
+                  id="sym"
+                  value={symbolInput}
+                  onChange={(ev) => {
+                    setSymbolInput(ev.target.value.toUpperCase());
+                    setSearchOpen(true);
+                  }}
+                  onBlur={() => {
+                    const v = symbolInput.trim().toUpperCase();
+                    if (v && /^[A-Z0-9.=^_\-+]{1,20}$/i.test(v)) {
+                      setSymbol(v); setSymbolInput(v);
+                    }
+                  }}
+                  onKeyDown={(ev) => {
+                    if (ev.key === "Enter") {
+                      const v = symbolInput.trim().toUpperCase();
+                      if (v && /^[A-Z0-9.=^_\-+]{1,20}$/i.test(v)) {
+                        setSymbol(v); setSymbolInput(v);
+                      }
+                      setSearchOpen(false);
+                    }
+                  }}
+                  onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
+                  autoComplete="off"
+                />
+                {searchOpen && searchResults.length > 0 && (
+                  <div className="search-dropdown">
+                    {searchResults.map((r) => (
+                      <button
+                        key={r.symbol}
+                        type="button"
+                        className="search-item"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setSymbol(r.symbol);
+                          setSymbolInput(r.symbol);
+                          setSearchOpen(false);
+                          setSearchResults([]);
+                        }}
+                      >
+                        <span className="search-item__symbol">{r.symbol}</span>
+                        {r.name && <span className="search-item__name">{r.name}</span>}
+                        {r.exchange && <span className="search-item__exch">{r.exchange}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="field">
               <div className="mode-toggle">
@@ -545,6 +640,17 @@ function App() {
               <strong className="mono">
                 {formatQuotePrice(quote.price, rate)}
               </strong>
+              {quote.marketState === "PRE" && quote.preMarketPrice != null && (
+                <span className="app__meta extended-hours">
+                  프리마켓 {formatQuotePrice(quote.preMarketPrice, rate)}
+                </span>
+              )}
+              {(quote.marketState === "POST" || quote.marketState === "POSTPOST") &&
+                quote.postMarketPrice != null && (
+                <span className="app__meta extended-hours">
+                  애프터마켓 {formatQuotePrice(quote.postMarketPrice, rate)}
+                </span>
+              )}
               <span className="app__meta">{formatWhen(quote.lastUpdated)}</span>
               <button
                 type="button"

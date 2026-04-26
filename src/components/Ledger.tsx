@@ -6,9 +6,10 @@ const TYPE_LABEL: Record<TransactionType, string> = {
   SUBTRACT_MONEY: "출금",
   BUY: "매수",
   SELL: "매도",
+  DIVIDEND_REINVEST: "배당재투자",
 };
 
-const ALL_TYPES: TransactionType[] = ["ADD_MONEY", "SUBTRACT_MONEY", "BUY", "SELL"];
+const ALL_TYPES: TransactionType[] = ["ADD_MONEY", "SUBTRACT_MONEY", "BUY", "SELL", "DIVIDEND_REINVEST"];
 
 type Props = {
   ledger: LedgerEntryResponse[];

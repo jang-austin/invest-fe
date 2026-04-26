@@ -3,6 +3,7 @@ import type {
   LedgerEntryResponse,
   PortfolioResponse,
   StockQuoteResponse,
+  StockSearchResult,
   TransactionType,
   UserResponse,
 } from "../types";
@@ -53,10 +54,10 @@ export async function checkHealth(): Promise<boolean> {
   }
 }
 
-export async function login(userId: string): Promise<UserResponse> {
-  return requestJson<UserResponse>("/api/auth/login", {
+export async function googleLogin(idToken: string): Promise<UserResponse> {
+  return requestJson<UserResponse>("/api/auth/google", {
     method: "POST",
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ idToken }),
   });
 }
 
@@ -140,4 +141,9 @@ export async function getLedger(
     }
   }
   return requestJson<LedgerEntryResponse[]>(`/api/ledger?${q}`);
+}
+
+export async function searchStocks(query: string): Promise<StockSearchResult[]> {
+  const q = new URLSearchParams({ q: query });
+  return requestJson<StockSearchResult[]>(`/api/stocks/search?${q}`);
 }
