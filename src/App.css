@@ -293,19 +293,19 @@ th {
 }
 
 .pnl--pos {
-  color: #16a34a;
+  color: #dc2626;
 }
 
 .pnl--neg {
-  color: #dc2626;
+  color: #2563eb;
 }
 
 @media (prefers-color-scheme: dark) {
   .pnl--pos {
-    color: #4ade80;
+    color: #f87171;
   }
   .pnl--neg {
-    color: #f87171;
+    color: #60a5fa;
   }
 }
 

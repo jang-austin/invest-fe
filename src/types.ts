@@ -16,6 +16,9 @@ export type StockQuoteResponse = {
   preMarketPrice: number | null;
   postMarketPrice: number | null;
   marketState: string | null;
+  currency: string | null;
+  regularMarketChange: number | null;
+  regularMarketChangePercent: number | null;
 };
 
 export type PortfolioResponse = {

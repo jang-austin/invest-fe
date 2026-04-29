@@ -3,9 +3,11 @@ import { formatKRW, formatNum } from "../utils/format";
 
 type Props = {
   holdings: HoldingInfo[];
+  selectedSymbol?: string;
+  onSelect?: (symbol: string) => void;
 };
 
-export function Holdings({ holdings }: Props) {
+export function Holdings({ holdings, selectedSymbol, onSelect }: Props) {
   if (holdings.length === 0) {
     return <p className="app__meta" style={{ padding: "0.5rem 0" }}>보유 중인 주식이 없습니다.</p>;
   }
@@ -26,9 +28,19 @@ export function Holdings({ holdings }: Props) {
         <tbody>
           {holdings.map((h) => {
             const pos = h.pnlAmountKrw >= 0;
+            const isSelected = h.symbol === selectedSymbol;
             return (
-              <tr key={h.symbol}>
-                <td className="mono">{h.symbol}</td>
+              <tr
+                key={h.symbol}
+                onClick={() => onSelect?.(h.symbol)}
+                style={{
+                  cursor: onSelect ? "pointer" : undefined,
+                  background: isSelected ? "rgba(37,99,235,0.08)" : undefined,
+                }}
+              >
+                <td className="mono" style={{ fontWeight: isSelected ? 700 : undefined }}>
+                  {h.symbol}
+                </td>
                 <td className="mono">{formatNum(h.quantity)}</td>
                 <td className="mono">{formatKRW(h.averageCostKrw)}</td>
                 <td className="mono">{formatKRW(h.currentPriceKrw)}</td>

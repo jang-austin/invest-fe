@@ -14,10 +14,12 @@ import type {
   TransactionType,
 } from "./types";
 import {
+  formatChange,
   formatKRW,
   formatNum,
   formatQuotePrice,
   formatWhen,
+  pnlClass,
 } from "./utils/format";
 import { parsePositiveDecimal } from "./util/decimalInput";
 
@@ -40,6 +42,7 @@ function App() {
     pictureUrl: string | null;
   } | null>(null);
   const googleBtnRef = useRef<HTMLDivElement>(null);
+  const tradeCardRef = useRef<HTMLDivElement>(null);
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [holdings, setHoldings] = useState<HoldingInfo[]>([]);
@@ -81,7 +84,7 @@ function App() {
     if (tradeMode !== "amount" || !quote) return null;
     const amt = parseFloat(tradeAmount);
     if (!amt || amt <= 0) return null;
-    const priceKrw = quote.price * rate;
+    const priceKrw = quote.currency === "KRW" ? quote.price : quote.price * rate;
     if (priceKrw <= 0) return null;
     return amt / priceKrw;
   }, [tradeMode, tradeAmount, quote, rate]);
@@ -348,6 +351,24 @@ function App() {
     });
   };
 
+  const handleSelectHolding = (sym: string) => {
+    setSymbol(sym);
+    setSymbolInput(sym);
+    tradeCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const currentHolding = holdings.find((h) => h.symbol === symbol) ?? null;
+
+  const handleSellAll = async () => {
+    if (!userId || !currentHolding) return;
+    await withBusy(async () => {
+      const u = await api.sell(userId, symbol, currentHolding.quantity, rate);
+      setCashBalance(u.balance);
+      await refreshPortfolio(userId);
+      await refreshLedger(userId, ledgerTypes);
+    });
+  };
+
   const handleSell = async () => {
     if (!userId) return;
     const qty = resolveTradeQty();
@@ -534,7 +555,7 @@ function App() {
       {error ? <div className="app__banner">{error}</div> : null}
 
       <div className="grid grid--2">
-        <div className="card">
+        <div className="card" ref={tradeCardRef}>
           <h2>시세 & 매매</h2>
           <p
             className="app__meta"
@@ -650,17 +671,34 @@ function App() {
               <span className="mono">{quote.symbol}</span>
               {quote.name && <span className="app__meta">{quote.name}</span>}
               <strong className="mono">
-                {formatQuotePrice(quote.price, rate)}
+                {formatQuotePrice(quote.price, rate, quote.currency)}
               </strong>
-              {quote.marketState === "PRE" && quote.preMarketPrice != null && (
+              {quote.regularMarketChange != null && quote.regularMarketChangePercent != null && (
+                <span className={`mono ${pnlClass(quote.regularMarketChange)}`} style={{ fontSize: "0.9em" }}>
+                  {formatChange(quote.regularMarketChange, quote.regularMarketChangePercent, quote.currency)}
+                </span>
+              )}
+              {(quote.marketState === "PRE" || quote.marketState === "PREPRE") &&
+                quote.preMarketPrice != null && (
                 <span className="app__meta extended-hours">
-                  프리마켓 {formatQuotePrice(quote.preMarketPrice, rate)}
+                  프리마켓 {formatQuotePrice(quote.preMarketPrice, rate, quote.currency)}
                 </span>
               )}
               {(quote.marketState === "POST" || quote.marketState === "POSTPOST") &&
                 quote.postMarketPrice != null && (
                 <span className="app__meta extended-hours">
-                  애프터마켓 {formatQuotePrice(quote.postMarketPrice, rate)}
+                  애프터마켓 {formatQuotePrice(quote.postMarketPrice, rate, quote.currency)}
+                </span>
+              )}
+              {quote.marketState === "CLOSED" &&
+                (quote.postMarketPrice != null || quote.preMarketPrice != null) && (
+                <span className="app__meta extended-hours">
+                  시간외{" "}
+                  {formatQuotePrice(
+                    (quote.postMarketPrice ?? quote.preMarketPrice)!,
+                    rate,
+                    quote.currency
+                  )}
                 </span>
               )}
               <span className="app__meta">{formatWhen(quote.lastUpdated)}</span>
@@ -680,6 +718,17 @@ function App() {
               >
                 매도
               </button>
+              {currentHolding && (
+                <button
+                  type="button"
+                  className="btn btn--danger btn--sm"
+                  onClick={() => void handleSellAll()}
+                  disabled={busy}
+                  title={`${formatNum(currentHolding.quantity)}주 전량 매도`}
+                >
+                  전량매도
+                </button>
+              )}
             </div>
           ) : symbol.trim() ? (
             <p className="app__meta" style={{ marginTop: "0.75rem" }}>
@@ -724,10 +773,10 @@ function App() {
               </div>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <dt>수동 입금 대비 손익률</dt>
-                <dd style={{ margin: 0 }}>
+                <dd style={{ margin: 0 }} className={portfolio.pnlPercentVsFunding != null ? pnlClass(portfolio.pnlPercentVsFunding) : ""}>
                   {portfolio.pnlPercentVsFunding == null
                     ? "—"
-                    : `${formatNum(portfolio.pnlPercentVsFunding)}%`}
+                    : `${portfolio.pnlPercentVsFunding >= 0 ? "+" : ""}${formatNum(portfolio.pnlPercentVsFunding)}%`}
                 </dd>
               </div>
             </dl>
@@ -802,7 +851,13 @@ function App() {
         </div>
 
         <div style={{ paddingTop: "0.75rem" }}>
-          {activeTab === "holdings" && <Holdings holdings={holdings} />}
+          {activeTab === "holdings" && (
+            <Holdings
+              holdings={holdings}
+              selectedSymbol={symbol}
+              onSelect={handleSelectHolding}
+            />
+          )}
           {activeTab === "ledger" && (
             <Ledger
               ledger={ledger}
