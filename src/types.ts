@@ -26,6 +26,7 @@ export type PortfolioResponse = {
   stockValue: number;
   totalValue: number;
   netManualFunding: number;
+  pnlAmountVsFunding: number | null;
   pnlPercentVsFunding: number | null;
 };
 
@@ -55,6 +56,10 @@ export type StockSearchResult = {
   name: string | null;
   exchange: string | null;
   type: string | null;
+  regularMarketPrice: number | null;
+  regularMarketChange: number | null;
+  regularMarketChangePercent: number | null;
+  currency: string | null;
 };
 
 export type LedgerEntryResponse = {

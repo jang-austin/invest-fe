@@ -538,8 +538,18 @@ th {
 }
 
 .search-item__exch {
-  margin-left: auto;
   font-size: 0.75rem;
   opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.search-item__chg {
+  margin-left: auto;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.search-item__affordable {
+  font-size: 0.75rem;
   flex-shrink: 0;
 }

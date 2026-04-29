@@ -609,7 +609,22 @@ function App() {
                       >
                         <span className="search-item__symbol">{r.symbol}</span>
                         {r.name && <span className="search-item__name">{r.name}</span>}
-                        {r.exchange && <span className="search-item__exch">{r.exchange}</span>}
+                        <span className="search-item__exch">{r.exchange}</span>
+                        {r.regularMarketChangePercent != null && (
+                          <span className={`search-item__chg mono ${pnlClass(r.regularMarketChangePercent)}`}>
+                            {r.regularMarketChangePercent >= 0 ? "+" : ""}
+                            {r.regularMarketChangePercent.toFixed(2)}%
+                          </span>
+                        )}
+                        {cashBalance != null && r.regularMarketPrice != null && r.regularMarketPrice > 0 && (() => {
+                          const priceKrw = r.currency === "KRW" ? r.regularMarketPrice : r.regularMarketPrice * rate;
+                          const affordable = Math.floor(cashBalance / priceKrw);
+                          return affordable > 0 ? (
+                            <span className="search-item__affordable app__meta">
+                              {affordable.toLocaleString("ko-KR")}주 매수가능
+                            </span>
+                          ) : null;
+                        })()}
                       </button>
                     ))}
                   </div>
@@ -772,7 +787,15 @@ function App() {
                 </dd>
               </div>
               <div className="row" style={{ justifyContent: "space-between" }}>
-                <dt>수동 입금 대비 손익률</dt>
+                <dt>손익금액</dt>
+                <dd style={{ margin: 0 }} className={portfolio.pnlAmountVsFunding != null ? pnlClass(portfolio.pnlAmountVsFunding) : ""}>
+                  {portfolio.pnlAmountVsFunding == null
+                    ? "—"
+                    : `${portfolio.pnlAmountVsFunding >= 0 ? "+" : ""}${formatKRW(portfolio.pnlAmountVsFunding)}`}
+                </dd>
+              </div>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <dt>손익률</dt>
                 <dd style={{ margin: 0 }} className={portfolio.pnlPercentVsFunding != null ? pnlClass(portfolio.pnlPercentVsFunding) : ""}>
                   {portfolio.pnlPercentVsFunding == null
                     ? "—"
