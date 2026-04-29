@@ -71,34 +71,22 @@ export async function getQuote(symbol: string): Promise<StockQuoteResponse> {
 export async function buy(
   userId: string,
   symbol: string,
-  quantity: number,
-  exchangeRate: number
+  quantity: number
 ): Promise<UserResponse> {
   return requestJson<UserResponse>("/api/orders/buy", {
     method: "POST",
-    body: JSON.stringify({
-      userId,
-      symbol: symbol.trim(),
-      quantity,
-      exchangeRate,
-    }),
+    body: JSON.stringify({ userId, symbol: symbol.trim(), quantity }),
   });
 }
 
 export async function sell(
   userId: string,
   symbol: string,
-  quantity: number,
-  exchangeRate: number
+  quantity: number
 ): Promise<UserResponse> {
   return requestJson<UserResponse>("/api/orders/sell", {
     method: "POST",
-    body: JSON.stringify({
-      userId,
-      symbol: symbol.trim(),
-      quantity,
-      exchangeRate,
-    }),
+    body: JSON.stringify({ userId, symbol: symbol.trim(), quantity }),
   });
 }
 

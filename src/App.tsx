@@ -344,7 +344,7 @@ function App() {
       return;
     }
     await withBusy(async () => {
-      const u = await api.buy(userId, symbol, qty, rate);
+      const u = await api.buy(userId, symbol, qty);
       setCashBalance(u.balance);
       await refreshPortfolio(userId);
       await refreshLedger(userId, ledgerTypes);
@@ -362,7 +362,7 @@ function App() {
   const handleSellAll = async () => {
     if (!userId || !currentHolding) return;
     await withBusy(async () => {
-      const u = await api.sell(userId, symbol, currentHolding.quantity, rate);
+      const u = await api.sell(userId, symbol, currentHolding.quantity);
       setCashBalance(u.balance);
       await refreshPortfolio(userId);
       await refreshLedger(userId, ledgerTypes);
@@ -381,7 +381,7 @@ function App() {
       return;
     }
     await withBusy(async () => {
-      const u = await api.sell(userId, symbol, qty, rate);
+      const u = await api.sell(userId, symbol, qty);
       setCashBalance(u.balance);
       await refreshPortfolio(userId);
       await refreshLedger(userId, ledgerTypes);
