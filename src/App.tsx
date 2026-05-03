@@ -46,7 +46,7 @@ function App() {
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [holdings, setHoldings] = useState<HoldingInfo[]>([]);
-  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);       // 확정된 심볼 (시세 조회용)
+  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL); // 확정된 심볼 (시세 조회용)
   const [symbolInput, setSymbolInput] = useState(DEFAULT_SYMBOL); // 입력 중인 텍스트 (검색용)
   const [quote, setQuote] = useState<StockQuoteResponse | null>(null);
   const [tradeMode, setTradeMode] = useState<TradeMode>("qty");
@@ -73,7 +73,6 @@ function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
 
-
   const rate: number =
     rateStatus === "yahoo" && yahooRate != null
       ? yahooRate
@@ -84,7 +83,8 @@ function App() {
     if (tradeMode !== "amount" || !quote) return null;
     const amt = parseFloat(tradeAmount);
     if (!amt || amt <= 0) return null;
-    const priceKrw = quote.currency === "KRW" ? quote.price : quote.price * rate;
+    const priceKrw =
+      quote.currency === "KRW" ? quote.price : quote.price * rate;
     if (priceKrw <= 0) return null;
     return amt / priceKrw;
   }, [tradeMode, tradeAmount, quote, rate]);
@@ -215,12 +215,19 @@ function App() {
   // 심볼 입력 디바운스 검색 (symbolInput 기준 — 한글 포함)
   useEffect(() => {
     const q = symbolInput.trim();
-    if (q.length < 1) { setSearchResults([]); setSearchOpen(false); return; }
+    if (q.length < 1) {
+      setSearchResults([]);
+      setSearchOpen(false);
+      return;
+    }
     const id = setTimeout(() => {
-      void api.searchStocks(q).then((r) => {
-        setSearchResults(r);
-        setSearchOpen(r.length > 0);
-      }).catch(() => {});
+      void api
+        .searchStocks(q)
+        .then((r) => {
+          setSearchResults(r);
+          setSearchOpen(r.length > 0);
+        })
+        .catch(() => {});
     }, 300);
     return () => clearTimeout(id);
   }, [symbolInput]);
@@ -228,7 +235,10 @@ function App() {
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
+      if (
+        searchWrapRef.current &&
+        !searchWrapRef.current.contains(e.target as Node)
+      ) {
         setSearchOpen(false);
       }
     };
@@ -262,40 +272,56 @@ function App() {
     };
   }, [symbol]);
 
-  const handleGoogleCredential = useCallback(async (credential: string) => {
-    await withBusy(async () => {
-      const u = await api.googleLogin(credential);
-      localStorage.setItem(USER_KEY, u.id);
-      setUserId(u.id);
-      setCashBalance(u.balance);
-      setUserProfile({ name: u.name, email: u.email, pictureUrl: u.pictureUrl });
-      await refreshPortfolio(u.id);
-      await refreshLedger(u.id, ledgerTypes);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ledgerTypes, refreshPortfolio, refreshLedger]);
+  const handleGoogleCredential = useCallback(
+    async (credential: string) => {
+      await withBusy(async () => {
+        const u = await api.googleLogin(credential);
+        localStorage.setItem(USER_KEY, u.id);
+        setUserId(u.id);
+        setCashBalance(u.balance);
+        setUserProfile({
+          name: u.name,
+          email: u.email,
+          pictureUrl: u.pictureUrl,
+        });
+        await refreshPortfolio(u.id);
+        await refreshLedger(u.id, ledgerTypes);
+      });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [ledgerTypes, refreshPortfolio, refreshLedger]
+  );
 
   // 1단계: GIS 스크립트 로드
   useEffect(() => {
     if (userId) return;
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as
+      | string
+      | undefined;
     if (!clientId) return;
 
     // 이미 로드된 경우 (캐시 등)
-    if (window.google?.accounts?.id) { setGsiReady(true); return; }
+    if (window.google?.accounts?.id) {
+      setGsiReady(true);
+      return;
+    }
 
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.onload = () => setGsiReady(true);
     document.body.appendChild(script);
-    return () => { document.body.removeChild(script); };
+    return () => {
+      document.body.removeChild(script);
+    };
   }, [userId]);
 
   // 2단계: 스크립트 준비 + ref 마운트 후 버튼 렌더링
   useEffect(() => {
     if (!gsiReady || !googleBtnRef.current) return;
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as
+      | string
+      | undefined;
     if (!clientId) return;
 
     window.google.accounts.id.initialize({
@@ -354,7 +380,10 @@ function App() {
   const handleSelectHolding = (sym: string) => {
     setSymbol(sym);
     setSymbolInput(sym);
-    tradeCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    tradeCardRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   };
 
   const currentHolding = holdings.find((h) => h.symbol === symbol) ?? null;
@@ -363,6 +392,32 @@ function App() {
     if (!userId || !currentHolding) return;
     await withBusy(async () => {
       const u = await api.sell(userId, symbol, currentHolding.quantity);
+      setCashBalance(u.balance);
+      await refreshPortfolio(userId);
+      await refreshLedger(userId, ledgerTypes);
+    });
+  };
+
+  const handleRoundUp = async () => {
+    if (!userId || !currentHolding) return;
+    const frac = currentHolding.quantity % 1;
+    if (frac < 0.000001) return;
+    const needed = parseFloat((1 - frac).toFixed(8));
+    await withBusy(async () => {
+      const u = await api.buy(userId, symbol, needed);
+      setCashBalance(u.balance);
+      await refreshPortfolio(userId);
+      await refreshLedger(userId, ledgerTypes);
+    });
+  };
+
+  const handleRoundDown = async () => {
+    if (!userId || !currentHolding) return;
+    const frac = currentHolding.quantity % 1;
+    if (frac < 0.000001) return;
+    const excess = parseFloat(frac.toFixed(8));
+    await withBusy(async () => {
+      const u = await api.sell(userId, symbol, excess);
       setCashBalance(u.balance);
       await refreshPortfolio(userId);
       await refreshLedger(userId, ledgerTypes);
@@ -458,10 +513,16 @@ function App() {
           )}
           {serverStatus !== "online" && (
             <p className="app__meta" style={{ marginTop: "0.75rem" }}>
-              {serverStatus === "offline" ? "⚠ 서버 연결 대기 중 — 로그인 후 잠시 기다려주세요" : "서버 확인 중…"}
+              {serverStatus === "offline"
+                ? "⚠ 서버 연결 대기 중 — 로그인 후 잠시 기다려주세요"
+                : "서버 확인 중…"}
             </p>
           )}
-          {busy && <p className="app__meta" style={{ marginTop: "0.5rem" }}>로그인 중…</p>}
+          {busy && (
+            <p className="app__meta" style={{ marginTop: "0.5rem" }}>
+              로그인 중…
+            </p>
+          )}
         </div>
       </div>
     );
@@ -577,19 +638,23 @@ function App() {
                   onBlur={() => {
                     const v = symbolInput.trim().toUpperCase();
                     if (v && /^[A-Z0-9.=^_\-+]{1,20}$/i.test(v)) {
-                      setSymbol(v); setSymbolInput(v);
+                      setSymbol(v);
+                      setSymbolInput(v);
                     }
                   }}
                   onKeyDown={(ev) => {
                     if (ev.key === "Enter") {
                       const v = symbolInput.trim().toUpperCase();
                       if (v && /^[A-Z0-9.=^_\-+]{1,20}$/i.test(v)) {
-                        setSymbol(v); setSymbolInput(v);
+                        setSymbol(v);
+                        setSymbolInput(v);
                       }
                       setSearchOpen(false);
                     }
                   }}
-                  onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
+                  onFocus={() => {
+                    if (searchResults.length > 0) setSearchOpen(true);
+                  }}
                   autoComplete="off"
                 />
                 {searchOpen && searchResults.length > 0 && (
@@ -608,23 +673,46 @@ function App() {
                         }}
                       >
                         <span className="search-item__symbol">{r.symbol}</span>
-                        {r.name && <span className="search-item__name">{r.name}</span>}
+                        {r.name && (
+                          <span className="search-item__name">{r.name}</span>
+                        )}
                         <span className="search-item__exch">{r.exchange}</span>
+                        {r.regularMarketPrice != null && (
+                          <span className="search-item__price mono">
+                            {formatQuotePrice(
+                              r.regularMarketPrice,
+                              rate,
+                              r.currency
+                            )}
+                          </span>
+                        )}
                         {r.regularMarketChangePercent != null && (
-                          <span className={`search-item__chg mono ${pnlClass(r.regularMarketChangePercent)}`}>
+                          <span
+                            className={`search-item__chg mono ${pnlClass(
+                              r.regularMarketChangePercent
+                            )}`}
+                          >
                             {r.regularMarketChangePercent >= 0 ? "+" : ""}
                             {r.regularMarketChangePercent.toFixed(2)}%
                           </span>
                         )}
-                        {cashBalance != null && r.regularMarketPrice != null && r.regularMarketPrice > 0 && (() => {
-                          const priceKrw = r.currency === "KRW" ? r.regularMarketPrice : r.regularMarketPrice * rate;
-                          const affordable = Math.floor(cashBalance / priceKrw);
-                          return affordable > 0 ? (
-                            <span className="search-item__affordable app__meta">
-                              {affordable.toLocaleString("ko-KR")}주 매수가능
-                            </span>
-                          ) : null;
-                        })()}
+                        {cashBalance != null &&
+                          r.regularMarketPrice != null &&
+                          r.regularMarketPrice > 0 &&
+                          (() => {
+                            const priceKrw =
+                              r.currency === "KRW"
+                                ? r.regularMarketPrice
+                                : r.regularMarketPrice * rate;
+                            const affordable = Math.floor(
+                              cashBalance / priceKrw
+                            );
+                            return affordable > 0 ? (
+                              <span className="search-item__affordable app__meta">
+                                {affordable.toLocaleString("ko-KR")}주 매수가능
+                              </span>
+                            ) : null;
+                          })()}
                       </button>
                     ))}
                   </div>
@@ -688,35 +776,114 @@ function App() {
               <strong className="mono">
                 {formatQuotePrice(quote.price, rate, quote.currency)}
               </strong>
-              {quote.regularMarketChange != null && quote.regularMarketChangePercent != null && (
-                <span className={`mono ${pnlClass(quote.regularMarketChange)}`} style={{ fontSize: "0.9em" }}>
-                  {formatChange(quote.regularMarketChange, quote.regularMarketChangePercent, quote.currency)}
-                </span>
-              )}
-              {(quote.marketState === "PRE" || quote.marketState === "PREPRE") &&
-                quote.preMarketPrice != null && (
-                <span className="app__meta extended-hours">
-                  프리마켓 {formatQuotePrice(quote.preMarketPrice, rate, quote.currency)}
-                </span>
-              )}
-              {(quote.marketState === "POST" || quote.marketState === "POSTPOST") &&
-                quote.postMarketPrice != null && (
-                <span className="app__meta extended-hours">
-                  애프터마켓 {formatQuotePrice(quote.postMarketPrice, rate, quote.currency)}
-                </span>
-              )}
+              {quote.regularMarketChange != null &&
+                quote.regularMarketChangePercent != null && (
+                  <span
+                    className={`mono ${pnlClass(quote.regularMarketChange)}`}
+                    style={{ fontSize: "0.9em" }}
+                  >
+                    {formatChange(
+                      quote.regularMarketChange,
+                      quote.regularMarketChangePercent,
+                      quote.currency
+                    )}
+                  </span>
+                )}
+              {(quote.marketState === "PRE" ||
+                quote.marketState === "PREPRE") &&
+                quote.preMarketPrice != null &&
+                (() => {
+                  const chg = quote.preMarketPrice! - quote.price;
+                  const chgPct =
+                    quote.price > 0 ? (chg / quote.price) * 100 : null;
+                  return (
+                    <span className="extended-hours">
+                      프리마켓{" "}
+                      {formatQuotePrice(
+                        quote.preMarketPrice!,
+                        rate,
+                        quote.currency
+                      )}
+                      {chgPct != null && (
+                        <span
+                          className={`mono ${pnlClass(chg)}`}
+                          style={{ marginLeft: "0.35rem", fontSize: "0.9em" }}
+                        >
+                          {chg >= 0 ? "+" : ""}
+                          {chgPct.toFixed(2)}%
+                        </span>
+                      )}
+                    </span>
+                  );
+                })()}
+              {(quote.marketState === "POST" ||
+                quote.marketState === "POSTPOST") &&
+                quote.postMarketPrice != null &&
+                (() => {
+                  const chg = quote.postMarketPrice! - quote.price;
+                  const chgPct =
+                    quote.price > 0 ? (chg / quote.price) * 100 : null;
+                  return (
+                    <span className="extended-hours">
+                      애프터마켓{" "}
+                      {formatQuotePrice(
+                        quote.postMarketPrice!,
+                        rate,
+                        quote.currency
+                      )}
+                      {chgPct != null && (
+                        <span
+                          className={`mono ${pnlClass(chg)}`}
+                          style={{ marginLeft: "0.35rem", fontSize: "0.9em" }}
+                        >
+                          {chg >= 0 ? "+" : ""}
+                          {chgPct.toFixed(2)}%
+                        </span>
+                      )}
+                    </span>
+                  );
+                })()}
               {quote.marketState === "CLOSED" &&
-                (quote.postMarketPrice != null || quote.preMarketPrice != null) && (
-                <span className="app__meta extended-hours">
-                  시간외{" "}
-                  {formatQuotePrice(
-                    (quote.postMarketPrice ?? quote.preMarketPrice)!,
-                    rate,
-                    quote.currency
-                  )}
-                </span>
-              )}
+                (quote.postMarketPrice != null ||
+                  quote.preMarketPrice != null) &&
+                (() => {
+                  const extPrice = (quote.postMarketPrice ??
+                    quote.preMarketPrice)!;
+                  const chg = extPrice - quote.price;
+                  const chgPct =
+                    quote.price > 0 ? (chg / quote.price) * 100 : null;
+                  return (
+                    <span className="extended-hours">
+                      시간외 {formatQuotePrice(extPrice, rate, quote.currency)}
+                      {chgPct != null && (
+                        <span
+                          className={`mono ${pnlClass(chg)}`}
+                          style={{ marginLeft: "0.35rem", fontSize: "0.9em" }}
+                        >
+                          {chg >= 0 ? "+" : ""}
+                          {chgPct.toFixed(2)}%
+                        </span>
+                      )}
+                    </span>
+                  );
+                })()}
               <span className="app__meta">{formatWhen(quote.lastUpdated)}</span>
+              {cashBalance != null &&
+                quote.price > 0 &&
+                (() => {
+                  const priceKrw =
+                    quote.currency === "KRW" ? quote.price : quote.price * rate;
+                  const affordable = Math.floor(cashBalance / priceKrw);
+                  return (
+                    <span className="app__meta">
+                      현금으로{" "}
+                      <span className="mono">
+                        {affordable.toLocaleString("ko-KR")}주
+                      </span>{" "}
+                      매수 가능
+                    </span>
+                  );
+                })()}
               <button
                 type="button"
                 className="btn btn--primary"
@@ -744,6 +911,39 @@ function App() {
                   전량매도
                 </button>
               )}
+              {currentHolding &&
+                currentHolding.quantity % 1 > 0.000001 &&
+                (() => {
+                  const frac = currentHolding.quantity % 1;
+                  const needed = parseFloat((1 - frac).toFixed(8));
+                  const excess = parseFloat(frac.toFixed(8));
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--sm"
+                        onClick={() => void handleRoundUp()}
+                        disabled={busy}
+                        title={`${formatNum(needed)}주 매수 → ${Math.ceil(
+                          currentHolding.quantity
+                        )}주`}
+                      >
+                        +{formatNum(needed)}주 (매수)
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--danger btn--sm"
+                        onClick={() => void handleRoundDown()}
+                        disabled={busy}
+                        title={`${formatNum(excess)}주 매도 → ${Math.floor(
+                          currentHolding.quantity
+                        )}주`}
+                      >
+                        -{formatNum(excess)}주 (매도)
+                      </button>
+                    </>
+                  );
+                })()}
             </div>
           ) : symbol.trim() ? (
             <p className="app__meta" style={{ marginTop: "0.75rem" }}>
@@ -788,18 +988,36 @@ function App() {
               </div>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <dt>손익금액</dt>
-                <dd style={{ margin: 0 }} className={portfolio.pnlAmountVsFunding != null ? pnlClass(portfolio.pnlAmountVsFunding) : ""}>
+                <dd
+                  style={{ margin: 0 }}
+                  className={
+                    portfolio.pnlAmountVsFunding != null
+                      ? pnlClass(portfolio.pnlAmountVsFunding)
+                      : ""
+                  }
+                >
                   {portfolio.pnlAmountVsFunding == null
                     ? "—"
-                    : `${portfolio.pnlAmountVsFunding >= 0 ? "+" : ""}${formatKRW(portfolio.pnlAmountVsFunding)}`}
+                    : `${
+                        portfolio.pnlAmountVsFunding >= 0 ? "+" : ""
+                      }${formatKRW(portfolio.pnlAmountVsFunding)}`}
                 </dd>
               </div>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <dt>손익률</dt>
-                <dd style={{ margin: 0 }} className={portfolio.pnlPercentVsFunding != null ? pnlClass(portfolio.pnlPercentVsFunding) : ""}>
+                <dd
+                  style={{ margin: 0 }}
+                  className={
+                    portfolio.pnlPercentVsFunding != null
+                      ? pnlClass(portfolio.pnlPercentVsFunding)
+                      : ""
+                  }
+                >
                   {portfolio.pnlPercentVsFunding == null
                     ? "—"
-                    : `${portfolio.pnlPercentVsFunding >= 0 ? "+" : ""}${formatNum(portfolio.pnlPercentVsFunding)}%`}
+                    : `${
+                        portfolio.pnlPercentVsFunding >= 0 ? "+" : ""
+                      }${formatNum(portfolio.pnlPercentVsFunding)}%`}
                 </dd>
               </div>
             </dl>
@@ -807,7 +1025,9 @@ function App() {
             <p className="app__meta">불러오는 중…</p>
           )}
           <hr style={{ margin: "1rem 0", opacity: 0.2 }} />
-          <h3 style={{ marginBottom: "0.5rem", fontSize: "0.95rem" }}>만약에 계산기</h3>
+          <h3 style={{ marginBottom: "0.5rem", fontSize: "0.95rem" }}>
+            만약에 계산기
+          </h3>
           <WhatIf userId={userId} />
         </div>
 

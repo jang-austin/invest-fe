@@ -543,8 +543,13 @@ th {
   flex-shrink: 0;
 }
 
-.search-item__chg {
+.search-item__price {
   margin-left: auto;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.search-item__chg {
   font-size: 0.8rem;
   flex-shrink: 0;
 }
