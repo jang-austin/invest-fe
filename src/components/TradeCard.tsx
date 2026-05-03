@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as api from "../api/investApi";
 import type { HoldingInfo, StockQuoteResponse, StockSearchResult } from "../types";
 import { parsePositiveDecimal } from "../util/decimalInput";
-import { formatChange, formatNum, formatQuotePrice, formatWhen, pnlClass } from "../utils/format";
+import { formatChange, formatNum, formatQuotePrice, formatWhen, pnlClass, toKrw } from "../utils/format";
 import { PriceChart } from "./PriceChart";
 
 type TradeMode = "qty" | "amount";
@@ -55,7 +55,7 @@ export function TradeCard({
     if (tradeMode !== "amount" || !quote) return null;
     const amt = parseFloat(tradeAmount);
     if (!amt || amt <= 0) return null;
-    const priceKrw = quote.currency === "KRW" ? quote.price : quote.price * rate;
+    const priceKrw = toKrw(quote.price, quote.currency, rate);
     if (priceKrw <= 0) return null;
     return amt / priceKrw;
   }, [tradeMode, tradeAmount, quote, rate]);
@@ -250,7 +250,7 @@ export function TradeCard({
           <ExtendedHoursBadge quote={quote} rate={rate} />
           <span className="app__meta">{formatWhen(quote.lastUpdated)}</span>
           {cashBalance != null && quote.price > 0 && (() => {
-            const priceKrw = quote.currency === "KRW" ? quote.price : quote.price * rate;
+            const priceKrw = toKrw(quote.price, quote.currency, rate);
             const affordable = Math.floor(cashBalance / priceKrw);
             return (
               <span className="app__meta">

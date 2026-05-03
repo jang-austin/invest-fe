@@ -30,6 +30,11 @@ export function formatQuotePrice(price: number, rate: number, currency?: string 
   return `₩${krw} ($${dollar})`;
 }
 
+/** currency=KRW면 price 그대로, 아니면 price * rate */
+export function toKrw(price: number, currency: string | null | undefined, rate: number): number {
+  return currency === "KRW" ? price : price * rate;
+}
+
 export function formatNum(n: number): string {
   return n.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
