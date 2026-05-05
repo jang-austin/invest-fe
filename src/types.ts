@@ -62,6 +62,14 @@ export type StockSearchResult = {
   currency: string | null;
 };
 
+export type StockUniverseItem = {
+  symbol: string;
+  name: string;
+  sector: string;
+  category: string;
+  indices: string[];
+};
+
 export type StockNewsItem = {
   title: string;
   publisher: string | null;

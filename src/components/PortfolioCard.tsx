@@ -15,6 +15,23 @@ export function PortfolioCard({ portfolio, userId, holdings }: Props) {
   const [copied, setCopied] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsCopied, setNewsCopied] = useState(false);
+  const [universeLoading, setUniverseLoading] = useState(false);
+  const [universeCopied, setUniverseCopied] = useState(false);
+
+  async function handleCopyUniverse() {
+    setUniverseLoading(true);
+    try {
+      const universe = await api.getStockUniverse("all");
+      const text = JSON.stringify(universe, null, 2);
+      await navigator.clipboard.writeText(text);
+      setUniverseCopied(true);
+      setTimeout(() => setUniverseCopied(false), 2500);
+    } catch {
+      alert("유니버스 복사 실패");
+    } finally {
+      setUniverseLoading(false);
+    }
+  }
 
   async function handleCopyAdvisorContext() {
     setCopying(true);
@@ -55,7 +72,21 @@ export function PortfolioCard({ portfolio, userId, holdings }: Props) {
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", gap: "0.5rem" }}>
         <h2 style={{ margin: 0 }}>포트폴리오</h2>
-        <div style={{ display: "flex", gap: "0.4rem" }}>
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <button
+            onClick={handleCopyUniverse}
+            disabled={universeLoading}
+            style={{
+              fontSize: "0.78rem",
+              padding: "0.3rem 0.65rem",
+              background: universeCopied ? "#16a34a" : undefined,
+              color: universeCopied ? "#fff" : undefined,
+              borderRadius: "6px",
+              cursor: universeLoading ? "wait" : "pointer",
+            }}
+          >
+            {universeLoading ? "로딩…" : universeCopied ? "✓ 복사됨" : "📊 종목 유니버스 복사"}
+          </button>
           <button
             onClick={handleCopyNews}
             disabled={newsLoading || holdings.length === 0}
