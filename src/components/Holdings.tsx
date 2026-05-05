@@ -19,10 +19,10 @@ export function Holdings({ holdings, selectedSymbol, onSelect }: Props) {
           <tr>
             <th>심볼</th>
             <th>수량</th>
-            <th>평균단가</th>
-            <th>현재가</th>
             <th>평가액</th>
             <th>손익</th>
+            <th style={{ opacity: 0.6 }}>평균단가</th>
+            <th style={{ opacity: 0.6 }}>현재가</th>
           </tr>
         </thead>
         <tbody>
@@ -42,8 +42,6 @@ export function Holdings({ holdings, selectedSymbol, onSelect }: Props) {
                   {h.symbol}
                 </td>
                 <td className="mono">{formatNum(h.quantity)}</td>
-                <td className="mono">{formatKRW(h.averageCostKrw)}</td>
-                <td className="mono">{formatKRW(h.currentPriceKrw)}</td>
                 <td className="mono">{formatKRW(h.currentValueKrw)}</td>
                 <td className={`mono pnl ${pos ? "pnl--pos" : "pnl--neg"}`}>
                   {pos ? "+" : ""}{formatKRW(h.pnlAmountKrw)}
@@ -53,6 +51,8 @@ export function Holdings({ holdings, selectedSymbol, onSelect }: Props) {
                     </span>
                   )}
                 </td>
+                <td className="mono" style={{ opacity: 0.6 }}>{formatKRW(h.averageCostKrw)}</td>
+                <td className="mono" style={{ opacity: 0.6 }}>{formatKRW(h.currentPriceKrw)}</td>
               </tr>
             );
           })}

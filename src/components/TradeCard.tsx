@@ -326,13 +326,15 @@ function ExtendedHoursBadge({
   let label: string | null = null;
   let extPrice: number | null = null;
 
-  if ((marketState === "PRE" || marketState === "PREPRE") && preMarketPrice != null) {
+  const state = marketState ?? "CLOSED";
+
+  if ((state === "PRE" || state === "PREPRE") && preMarketPrice != null) {
     label = "프리마켓";
     extPrice = preMarketPrice;
-  } else if ((marketState === "POST" || marketState === "POSTPOST") && postMarketPrice != null) {
+  } else if ((state === "POST" || state === "POSTPOST") && postMarketPrice != null) {
     label = "애프터마켓";
     extPrice = postMarketPrice;
-  } else if (marketState === "CLOSED" && (postMarketPrice != null || preMarketPrice != null)) {
+  } else if (state === "CLOSED" && (postMarketPrice != null || preMarketPrice != null)) {
     label = "시간외";
     extPrice = postMarketPrice ?? preMarketPrice!;
   }
