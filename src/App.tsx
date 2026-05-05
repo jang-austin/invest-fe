@@ -398,7 +398,7 @@ function App() {
           onError={setError}
         />
 
-        <PortfolioCard portfolio={portfolio} userId={userId} />
+        <PortfolioCard portfolio={portfolio} userId={userId} holdings={holdings} />
 
         <WalletCard
           walletAmount={walletAmount}

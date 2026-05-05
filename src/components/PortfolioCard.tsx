@@ -1,17 +1,20 @@
 import { useState } from "react";
 import * as api from "../api/investApi";
-import type { PortfolioResponse } from "../types";
+import type { HoldingInfo, PortfolioResponse } from "../types";
 import { formatKRW, formatNum, pnlClass } from "../utils/format";
 import { WhatIf } from "./WhatIf";
 
 type Props = {
   portfolio: PortfolioResponse | null;
   userId: string;
+  holdings: HoldingInfo[];
 };
 
-export function PortfolioCard({ portfolio, userId }: Props) {
+export function PortfolioCard({ portfolio, userId, holdings }: Props) {
   const [copying, setCopying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsCopied, setNewsCopied] = useState(false);
 
   async function handleCopyAdvisorContext() {
     setCopying(true);
@@ -28,24 +31,60 @@ export function PortfolioCard({ portfolio, userId }: Props) {
     }
   }
 
+  async function handleCopyNews() {
+    setNewsLoading(true);
+    try {
+      const symbols = holdings.map((h) => h.symbol);
+      const news = await api.getStockNews(symbols, 10);
+      const lines = news.map((n) => {
+        const date = n.publishedAt ? new Date(n.publishedAt).toLocaleDateString("ko-KR") : "";
+        const tickers = n.relatedTickers.length > 0 ? `[${n.relatedTickers.join(", ")}]` : "";
+        return `${date} ${tickers} ${n.title} — ${n.publisher ?? ""}`;
+      });
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setNewsCopied(true);
+      setTimeout(() => setNewsCopied(false), 2500);
+    } catch {
+      alert("뉴스 복사 실패");
+    } finally {
+      setNewsLoading(false);
+    }
+  }
+
   return (
     <div className="card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", gap: "0.5rem" }}>
         <h2 style={{ margin: 0 }}>포트폴리오</h2>
-        <button
-          onClick={handleCopyAdvisorContext}
-          disabled={copying || !userId}
-          style={{
-            fontSize: "0.78rem",
-            padding: "0.3rem 0.65rem",
-            background: copied ? "#16a34a" : undefined,
-            color: copied ? "#fff" : undefined,
-            borderRadius: "6px",
-            cursor: copying ? "wait" : "pointer",
-          }}
-        >
-          {copying ? "로딩…" : copied ? "✓ 복사됨" : "📋 AI 조언 컨텍스트 복사"}
-        </button>
+        <div style={{ display: "flex", gap: "0.4rem" }}>
+          <button
+            onClick={handleCopyNews}
+            disabled={newsLoading || holdings.length === 0}
+            style={{
+              fontSize: "0.78rem",
+              padding: "0.3rem 0.65rem",
+              background: newsCopied ? "#16a34a" : undefined,
+              color: newsCopied ? "#fff" : undefined,
+              borderRadius: "6px",
+              cursor: newsLoading ? "wait" : "pointer",
+            }}
+          >
+            {newsLoading ? "로딩…" : newsCopied ? "✓ 복사됨" : "📰 뉴스 복사"}
+          </button>
+          <button
+            onClick={handleCopyAdvisorContext}
+            disabled={copying || !userId}
+            style={{
+              fontSize: "0.78rem",
+              padding: "0.3rem 0.65rem",
+              background: copied ? "#16a34a" : undefined,
+              color: copied ? "#fff" : undefined,
+              borderRadius: "6px",
+              cursor: copying ? "wait" : "pointer",
+            }}
+          >
+            {copying ? "로딩…" : copied ? "✓ 복사됨" : "📋 포트폴리오 복사"}
+          </button>
+        </div>
       </div>
       {portfolio ? (
         <dl className="mono" style={{ margin: 0, display: "grid", gap: "0.35rem" }}>

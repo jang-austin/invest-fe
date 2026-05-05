@@ -62,6 +62,14 @@ export type StockSearchResult = {
   currency: string | null;
 };
 
+export type StockNewsItem = {
+  title: string;
+  publisher: string | null;
+  link: string | null;
+  publishedAt: string | null;
+  relatedTickers: string[];
+};
+
 export type AdvisorContextResponse = {
   snapshotAt: string;
   goal: { stablePct: number; aggressivePct: number };
