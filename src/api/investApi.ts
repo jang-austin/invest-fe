@@ -1,4 +1,5 @@
 import type {
+  AdvisorContextResponse,
   HoldingInfo,
   HistoryPoint,
   LedgerEntryResponse,
@@ -146,4 +147,17 @@ export async function getHistory(symbol: string, range: string): Promise<History
 export async function getWhatIf(userId: string, symbol: string): Promise<WhatIfResponse> {
   const q = new URLSearchParams({ userId, symbol });
   return requestJson<WhatIfResponse>(`/api/portfolio/whatif?${q}`);
+}
+
+export async function getAdvisorContext(
+  userId: string,
+  stablePct = 30,
+  aggressivePct = 70,
+): Promise<AdvisorContextResponse> {
+  const q = new URLSearchParams({
+    userId,
+    stablePct: String(stablePct),
+    aggressivePct: String(aggressivePct),
+  });
+  return requestJson<AdvisorContextResponse>(`/api/portfolio/advisor-context?${q}`);
 }

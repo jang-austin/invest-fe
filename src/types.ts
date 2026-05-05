@@ -62,6 +62,37 @@ export type StockSearchResult = {
   currency: string | null;
 };
 
+export type AdvisorContextResponse = {
+  snapshotAt: string;
+  goal: { stablePct: number; aggressivePct: number };
+  portfolio: {
+    totalValueKrw: number;
+    cashBalanceKrw: number;
+    stockValueKrw: number;
+    netFundingKrw: number;
+    totalPnlKrw: number | null;
+    totalPnlPct: number | null;
+  };
+  holdings: {
+    symbol: string;
+    quantity: number;
+    averageCostKrw: number;
+    currentPriceKrw: number;
+    currentValueKrw: number;
+    pnlAmountKrw: number;
+    pnlPct: number | null;
+    portfolioWeightPct: number;
+  }[];
+  recentTransactions: {
+    type: string;
+    symbol: string | null;
+    quantity: number | null;
+    unitPriceKrw: number | null;
+    cashDeltaKrw: number;
+    executedAt: string;
+  }[];
+};
+
 export type LedgerEntryResponse = {
   id: number;
   type: TransactionType;

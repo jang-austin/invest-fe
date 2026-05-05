@@ -1,3 +1,5 @@
+import { useState } from "react";
+import * as api from "../api/investApi";
 import type { PortfolioResponse } from "../types";
 import { formatKRW, formatNum, pnlClass } from "../utils/format";
 import { WhatIf } from "./WhatIf";
@@ -8,9 +10,43 @@ type Props = {
 };
 
 export function PortfolioCard({ portfolio, userId }: Props) {
+  const [copying, setCopying] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopyAdvisorContext() {
+    setCopying(true);
+    try {
+      const ctx = await api.getAdvisorContext(userId);
+      const text = JSON.stringify(ctx, null, 2);
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      alert("컨텍스트 복사 실패");
+    } finally {
+      setCopying(false);
+    }
+  }
+
   return (
     <div className="card">
-      <h2>포트폴리오</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+        <h2 style={{ margin: 0 }}>포트폴리오</h2>
+        <button
+          onClick={handleCopyAdvisorContext}
+          disabled={copying || !userId}
+          style={{
+            fontSize: "0.78rem",
+            padding: "0.3rem 0.65rem",
+            background: copied ? "#16a34a" : undefined,
+            color: copied ? "#fff" : undefined,
+            borderRadius: "6px",
+            cursor: copying ? "wait" : "pointer",
+          }}
+        >
+          {copying ? "로딩…" : copied ? "✓ 복사됨" : "📋 AI 조언 컨텍스트 복사"}
+        </button>
+      </div>
       {portfolio ? (
         <dl className="mono" style={{ margin: 0, display: "grid", gap: "0.35rem" }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
@@ -31,10 +67,7 @@ export function PortfolioCard({ portfolio, userId }: Props) {
             <dt>순 수동 입출금</dt>
             <dd style={{ margin: 0 }}>{formatKRW(portfolio.netManualFunding)}</dd>
           </div>
-          <div
-            className="row"
-            style={{ justifyContent: "space-between" }}
-          >
+          <div className="row" style={{ justifyContent: "space-between" }}>
             <dt>손익금액</dt>
             <dd
               style={{ margin: 0 }}
