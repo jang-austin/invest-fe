@@ -1,5 +1,5 @@
 import type { HoldingInfo } from "../types";
-import { formatKRW, formatNum } from "../utils/format";
+import { formatKRW, formatNum, pnlClass } from "../utils/format";
 
 type Props = {
   holdings: HoldingInfo[];
@@ -21,6 +21,7 @@ export function Holdings({ holdings, selectedSymbol, onSelect }: Props) {
             <th>수량</th>
             <th>평가액</th>
             <th>손익</th>
+            <th>오늘</th>
             <th style={{ opacity: 0.6 }}>평균단가</th>
             <th style={{ opacity: 0.6 }}>현재가</th>
           </tr>
@@ -29,6 +30,7 @@ export function Holdings({ holdings, selectedSymbol, onSelect }: Props) {
           {holdings.map((h) => {
             const pos = h.pnlAmountKrw >= 0;
             const isSelected = h.symbol === selectedSymbol;
+            const todayPos = (h.todayChangePct ?? 0) >= 0;
             return (
               <tr
                 key={h.symbol}
@@ -50,6 +52,11 @@ export function Holdings({ holdings, selectedSymbol, onSelect }: Props) {
                       ({pos ? "+" : ""}{h.pnlPercent.toFixed(2)}%)
                     </span>
                   )}
+                </td>
+                <td className={`mono pnl ${h.todayChangePct != null ? pnlClass(h.todayChangePct) : ""}`}>
+                  {h.todayChangePct != null
+                    ? `${todayPos ? "+" : ""}${h.todayChangePct.toFixed(2)}%`
+                    : "—"}
                 </td>
                 <td className="mono" style={{ opacity: 0.6 }}>{formatKRW(h.averageCostKrw)}</td>
                 <td className="mono" style={{ opacity: 0.6 }}>{formatKRW(h.currentPriceKrw)}</td>

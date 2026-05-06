@@ -38,6 +38,8 @@ export type HoldingInfo = {
   currentValueKrw: number;
   pnlAmountKrw: number;
   pnlPercent: number | null;
+  todayChangeKrw: number | null;
+  todayChangePct: number | null;
 };
 
 export type HistoryPoint = { date: string; close: number };
