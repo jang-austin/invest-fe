@@ -1,5 +1,5 @@
 import type { LedgerEntryResponse, TransactionType } from "../types";
-import { formatKRW, formatNum, formatWhen } from "../utils/format";
+import { formatKRW, formatNum, formatWhen, pnlClass } from "../utils/format";
 
 const TYPE_LABEL: Record<TransactionType, string> = {
   ADD_MONEY: "입금",
@@ -19,6 +19,8 @@ type Props = {
 };
 
 export function Ledger({ ledger, ledgerTypes, onToggleType, onResetFilter }: Props) {
+  const hasSellPnl = ledger.some((r) => r.type === "SELL" && r.pnlAmountKrw != null);
+
   return (
     <>
       <p className="app__meta" style={{ marginBottom: "0.65rem" }}>
@@ -54,12 +56,13 @@ export function Ledger({ ledger, ledgerTypes, onToggleType, onResetFilter }: Pro
               <th>수량</th>
               <th>단가 (원)</th>
               <th>현금 변동 (원)</th>
+              {hasSellPnl && <th>매도 손익</th>}
             </tr>
           </thead>
           <tbody>
             {ledger.length === 0 ? (
               <tr>
-                <td colSpan={6} className="app__meta">내역이 없습니다.</td>
+                <td colSpan={hasSellPnl ? 7 : 6} className="app__meta">내역이 없습니다.</td>
               </tr>
             ) : (
               ledger.map((row) => (
@@ -70,6 +73,13 @@ export function Ledger({ ledger, ledgerTypes, onToggleType, onResetFilter }: Pro
                   <td className="mono">{row.quantity == null ? "—" : formatNum(row.quantity)}</td>
                   <td className="mono">{row.unitPrice == null ? "—" : formatKRW(row.unitPrice)}</td>
                   <td className="mono">{formatKRW(row.cashDelta)}</td>
+                  {hasSellPnl && (
+                    <td className={`mono ${row.pnlAmountKrw != null ? pnlClass(row.pnlAmountKrw) : ""}`}>
+                      {row.type === "SELL" && row.pnlAmountKrw != null
+                        ? `${row.pnlAmountKrw >= 0 ? "+" : ""}${formatKRW(row.pnlAmountKrw)}`
+                        : "—"}
+                    </td>
+                  )}
                 </tr>
               ))
             )}

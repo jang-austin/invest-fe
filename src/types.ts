@@ -116,5 +116,7 @@ export type LedgerEntryResponse = {
   quantity: number | null;
   unitPrice: number | null;
   cashDelta: number;
+  costBasisKrw: number | null;
+  pnlAmountKrw: number | null;
   createdAt: string;
 };
